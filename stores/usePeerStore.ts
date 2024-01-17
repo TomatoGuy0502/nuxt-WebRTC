@@ -5,8 +5,12 @@ export const usePeerStore = defineStore('peer', () => {
   const peerId = ref('')
   const isPeerReady = computed(() => peerId.value !== '')
   const peer = ref<Peer>()
+  const isCheckingRoomExist = ref(false)
+  const isRoomExist = ref(false)
 
   function createPeer() {
+    if (peer.value)
+      return
     return new Promise<void>((resolve) => {
       peer.value = new Peer({
         host: 'localhost',
@@ -18,7 +22,18 @@ export const usePeerStore = defineStore('peer', () => {
         resolve()
       })
       peer.value.on('error', (err) => {
-        console.error(err)
+        switch (err.type) {
+          case 'peer-unavailable':
+            isCheckingRoomExist.value = false
+            isRoomExist.value = false
+            console.error(err)
+            break
+          default:
+            isCheckingRoomExist.value = false
+            isRoomExist.value = false
+            console.error(err)
+            break
+        }
       })
     })
   }
@@ -28,18 +43,20 @@ export const usePeerStore = defineStore('peer', () => {
   function callAnotherPeer(peerId: string, stream: MediaStream) {
     if (!peer.value || !isPeerReady.value)
       return
+    isCheckingRoomExist.value = true
     call.value = peer.value.call(peerId, stream)
     call.value.on('stream', (_remoteStream) => {
+      isCheckingRoomExist.value = false
+      isRoomExist.value = true
       remoteStream.value = _remoteStream
     })
   }
-  function changeMediaStream(stream: MediaStream, type: 'video' | 'audio' | 'both' = 'both') {
+  function changeMediaStreamTrack(track: MediaStreamTrack, type: 'video' | 'audio') {
     call.value?.peerConnection?.getSenders().forEach((sender) => {
-      if ((type === 'both' || type === 'video') && sender.track?.kind === 'video')
-        sender.replaceTrack(stream.getVideoTracks()[0])
-
-      else if ((type === 'both' || type === 'audio') && sender.track?.kind === 'audio')
-        sender.replaceTrack(stream.getAudioTracks()[0])
+      if (type === sender.track?.kind) {
+        sender.track.stop() // stop old track
+        sender.replaceTrack(track)
+      }
     })
   }
 
@@ -50,7 +67,9 @@ export const usePeerStore = defineStore('peer', () => {
     createPeer,
     remoteStream,
     callAnotherPeer,
-    changeMediaStream,
+    changeMediaStreamTrack,
     call,
+    isCheckingRoomExist,
+    isRoomExist,
   }
 })

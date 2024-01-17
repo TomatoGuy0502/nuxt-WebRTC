@@ -3,17 +3,23 @@ import '@unocss/reset/tailwind-compat.css'
 
 const route = useRoute()
 const peerStore = usePeerStore()
-const { peer, isPeerReady, remoteStream, call } = storeToRefs(peerStore)
+const { peer, isPeerReady, remoteStream, call, isRoomExist, isCheckingRoomExist } = storeToRefs(peerStore)
+isCheckingRoomExist.value = true
 
 const { cameras, microphones, speakers, currentCamera, currentMicrophone, currentSpeaker, supportChangeAudioOutput } = useDevices()
 
-const videoEl1 = ref<HTMLVideoElement>()
+const myVideoEl = ref<HTMLVideoElement>()
+const remoteVideoEl = ref<HTMLVideoElement>()
 const canvasEl = ref<HTMLCanvasElement>()
+
+const isCreater = computed(() => route.params.roomId === peerStore.peerId)
 
 const showCanvas = ref(false)
 
-const isMuted = ref(false)
-const { stream, enabled, restart, constraints } = useUserMedia({
+const isCameraOn = ref(true)
+const isMicOn = ref(true)
+
+const { stream: toRemoteStream } = useUserMedia({
   enabled: true,
   autoSwitch: false,
   constraints: {
@@ -21,19 +27,27 @@ const { stream, enabled, restart, constraints } = useUserMedia({
     audio: {},
   },
 })
+// Used to create a new stream when switching devices
+const tempStream: Ref<MediaStream | undefined> = shallowRef()
+function clearTempStream() {
+  tempStream.value?.getTracks().forEach(track => track.stop())
+  tempStream.value = undefined
+}
 
 if (isPeerReady.value) { // 創好房間，等待其他人加入
+  isCheckingRoomExist.value = false
+  isRoomExist.value = true
   peer.value!.on('call', (_call) => {
     call.value = _call
-    call.value.answer(stream.value)
+    call.value.answer(toRemoteStream.value)
     call.value.on('stream', (_remoteStream) => {
       remoteStream.value = _remoteStream
     })
   })
 } else { // 加入房間
   await peerStore.createPeer()
-  const stop = watch(stream, (newStream) => {
-    if (newStream) {
+  const stop = watch(toRemoteStream, (newStream) => {
+    if (newStream) { // Wait for stream ready
       peerStore.callAnotherPeer(route.params.roomId as string, newStream)
       stop()
     }
@@ -43,22 +57,54 @@ if (isPeerReady.value) { // 創好房間，等待其他人加入
 watch(currentCamera, async (newDeviceId, oldDeviceId) => {
   if (!oldDeviceId || !newDeviceId)
     return
-  constraints.value!.video = { deviceId: newDeviceId, width: 640, height: 360 }
-  handleChangeDevice('video')
+  // Change stream sent to remote peer
+  try {
+    // Create a new track and replace the old one
+    tempStream.value = await navigator.mediaDevices.getUserMedia({ video: { deviceId: newDeviceId, width: 640, height: 360 } })
+    const newVideoTrack = tempStream.value.getVideoTracks()[0].clone()
+    newVideoTrack.enabled = isCameraOn.value
+    handleCanvasTransition()
+
+    // Change the streamTrack sent to the remote peer first
+    peerStore.changeMediaStreamTrack(newVideoTrack, 'video')
+    // Then change the streamTrack displayed on the screen
+    removeTrack(toRemoteStream.value!, 'video')
+    addTrack(toRemoteStream.value!, newVideoTrack, isCameraOn.value)
+
+    showCanvas.value = false
+    clearTempStream()
+  } catch (e) {
+    console.error(e)
+  }
 })
+
+function removeTrack(stream: MediaStream, kind: 'audio' | 'video') {
+  const [track] = stream.getTracks().filter(track => track.kind === kind)
+  if (track) {
+    stream.removeTrack(track)
+    track.stop()
+  }
+}
+function addTrack(stream: MediaStream, track: MediaStreamTrack, enabled: boolean = true) {
+  track.enabled = enabled
+  stream.addTrack(track)
+}
 
 watch(currentMicrophone, async (newDeviceId, oldDeviceId) => {
   if (!oldDeviceId || !newDeviceId)
     return
-  // let newStream = null
-  // try {
-  //   newStream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: newDeviceId } })
-  //   peerStore.changeMediaStream(newStream, 'audio')
-  // } catch (e) {
-  //   console.error(e)
-  // }
-  constraints.value!.audio = { deviceId: newDeviceId }
-  handleChangeDevice('audio')
+  try {
+    tempStream.value = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: newDeviceId } })
+    const newAudioTrack = tempStream.value.getAudioTracks()[0].clone()
+    newAudioTrack.enabled = isMicOn.value
+    peerStore.changeMediaStreamTrack(newAudioTrack, 'audio')
+
+    removeTrack(toRemoteStream.value!, 'audio')
+    addTrack(toRemoteStream.value!, newAudioTrack, isMicOn.value)
+    clearTempStream()
+  } catch (e) {
+    console.error(e)
+  }
 })
 
 // Handle audio output change
@@ -68,64 +114,78 @@ onMounted(() => {
   watch(currentSpeaker, (newDeviceId, oldDeviceId) => {
     if (!oldDeviceId || !newDeviceId)
       return
-    (videoEl1.value as any).setSinkId(newDeviceId)
+    (remoteVideoEl.value as any).setSinkId(newDeviceId)
   })
 })
 
+function toggleCamera() {
+  isCameraOn.value = !isCameraOn.value
+  if (toRemoteStream.value)
+    toRemoteStream.value.getVideoTracks()[0].enabled = isCameraOn.value
+}
+
 function toggleMuteMyself() {
-  isMuted.value = !isMuted.value
-  if (stream.value)
-    stream.value.getAudioTracks()[0].enabled = !isMuted.value
+  isMicOn.value = !isMicOn.value
+  if (toRemoteStream.value)
+    toRemoteStream.value.getAudioTracks()[0].enabled = isMicOn.value
 }
 
 // Draw the last frame of the video stream into the canvas, preventing the video from disappearing when switching devices
-// TODO: Handle toggle camera
-function handleChangeDevice(type: 'video' | 'audio') {
-  const ctx = canvasEl.value!.getContext('2d')!
-  ctx.drawImage(videoEl1.value!, 0, 0, 640, 360)
-  showCanvas.value = true
-  const stop = watch(stream, (newStream) => {
-    if (newStream) {
-      peerStore.changeMediaStream(newStream, type)
-      setTimeout(() => {
-        showCanvas.value = false
-        stop()
-      }, 100)
-    }
-  })
-  if (enabled.value) {
-    setTimeout(() => {
-      restart()
-    }, 100)
+function handleCanvasTransition() {
+  if (isCameraOn.value) {
+    const ctx = canvasEl.value!.getContext('2d')!
+    ctx.drawImage(myVideoEl.value!, 0, 0, 640, 360)
+    showCanvas.value = true
   }
+}
+
+function handleCopyLink() {
+  navigator.clipboard.writeText(window.location.href)
 }
 </script>
 
 <template>
   <div class="h-dvh bg-gray-50 flex flex-col bg-pattern p-4 gap-4">
-    <nav class="p-4 bg-gray-700/20 rounded-lg backdrop-blur-sm backdrop-filter">
+    <nav class="flex p-4 gap-4 bg-gray-700/20 rounded-lg backdrop-blur-sm backdrop-filter">
       <a href="/" class="font-black text-4xl text-white">
         WebRTC Playground
       </a>
+      <button v-if="isCreater" class="ml-auto flex items-center gap-2 p-2 px-4 rounded-lg bg-orange-300 transition text-white hover:(bg-orange-400)" @click="handleCopyLink">
+        <div class="i-tabler-copy w-5 h-5 mt-0.5" />
+        <span class="font-bold">Copy Link</span>
+      </button>
+      <!-- TODO: Hide the button when the room is full -->
+      <a v-if="isCreater" class="flex items-center gap-2 p-2 px-4 rounded-lg bg-orange-300 transition text-white hover:(bg-orange-400)" :href="$route.fullPath" target="_blank">
+        <div class="i-tabler-external-link w-5 h-5 mt-0.5" />
+        <span class="font-bold">Join the room in new tab</span>
+      </a>
     </nav>
-    <div class="flex gap-4 flex-1">
+    <div v-if="isCheckingRoomExist" class="flex flex-1 p-4 justify-center items-center bg-gray-700/20 rounded-lg backdrop-blur-sm backdrop-filter text-2xl">
+      正在將你引導至房間...
+    </div>
+    <div v-else-if="!isRoomExist" class="flex flex-1 p-4 justify-center items-center bg-gray-700/20 rounded-lg backdrop-blur-sm backdrop-filter text-2xl">
+      房間不存在，<NuxtLink to="/" class="underline">
+        {{ '返回主頁面' }}
+      </NuxtLink>
+    </div>
+    <div v-else class="flex gap-4 flex-1" :class="{ 'flex-row-reverse': !isCreater }">
       <div class="flex-1 flex p-4 justify-center items-center bg-gray-700/20 rounded-lg backdrop-blur-sm backdrop-filter relative">
         <div class="flex gap-4 p-2 px-4 absolute bottom-4 left-1/2 -translate-x-1/2 z-1 rounded-lg bg-gray-700/20">
           <button
             class="p-4 text-white rounded-full transition"
-            :class="!isMuted ? 'bg-black/20 hover:(bg-black/30)' : 'bg-red-400 hover:(bg-red-500)'"
+            :class="isMicOn ? 'bg-black/20 hover:(bg-black/30)' : 'bg-red-400 hover:(bg-red-500)'"
             @click="toggleMuteMyself"
           >
-            <div v-show="!isMuted" class="i-tabler-microphone w-8 h-8" />
-            <div v-show="isMuted" class="i-tabler-microphone-off w-8 h-8" />
+            <div v-show="isMicOn" class="i-tabler-microphone w-8 h-8" />
+            <div v-show="!isMicOn" class="i-tabler-microphone-off w-8 h-8" />
           </button>
           <button
             class="p-4 text-white rounded-full transition"
-            :class="enabled ? 'bg-black/20 hover:(bg-black/30)' : 'bg-red-400 hover:(bg-red-500)'"
-            @click="enabled = !enabled"
+            :class="isCameraOn ? 'bg-black/20 hover:(bg-black/30)' : 'bg-red-400 hover:(bg-red-500)'"
+            @click="toggleCamera"
           >
-            <div v-show="enabled" class="i-tabler-video w-8 h-8" />
-            <div v-show="!enabled" class="i-tabler-video-off w-8 h-8" />
+            <div v-show="isCameraOn" class="i-tabler-video w-8 h-8" />
+            <div v-show="!isCameraOn" class="i-tabler-video-off w-8 h-8" />
           </button>
           <SettingModal
             v-model:currentCamera="currentCamera"
@@ -134,22 +194,33 @@ function handleChangeDevice(type: 'video' | 'audio') {
             :cameras="cameras" :microphones="microphones" :speakers="speakers"
           />
         </div>
-        <div class="relative overflow-hidden rounded-lg w-full">
-          <video
-            ref="videoEl1" muted playsinline
-            autoplay :srcObject="stream" class="aspect-video w-full"
-          />
-          <div v-if="!enabled" class="bg-gray-700/20 backdrop-blur-sm backdrop-filter absolute inset-0 flex items-center justify-center select-none">
-            鏡頭尚未開啟
-          </div>
+        <div class="relative overflow-hidden rounded-lg aspect-video w-full">
+          <transition
+            enter-active-class="transition duration-100 ease-in"
+            enter-from-class="opacity-0"
+          >
+            <video
+              v-show="isCameraOn" ref="myVideoEl" muted
+              playsinline autoplay :srcObject="toRemoteStream" class="aspect-video w-full"
+            />
+          </transition>
+          <transition
+            leave-active-class="transition duration-100 ease-in"
+            leave-to-class="opacity-0"
+          >
+            <div v-show="!isCameraOn" class="bg-gray-700/20 backdrop-blur-sm backdrop-filter absolute inset-0 flex items-center justify-center select-none">
+              鏡頭尚未開啟
+            </div>
+          </transition>
           <canvas v-show="showCanvas" ref="canvasEl" width="640" height="360" class="absolute top-0 w-full" />
         </div>
-        <!-- TODO: Add share button -->
         <!-- TODO: Handle user disconnection -->
+        <!-- TODO: Handle remote hide camera -->
       </div>
       <div class="flex-1 flex p-4 justify-center items-center bg-gray-700/20 rounded-lg backdrop-blur-sm backdrop-filter">
         <div class="relative overflow-hidden rounded-lg w-full">
           <video
+            ref="remoteVideoEl"
             playsinline autoplay :srcObject="remoteStream" class="aspect-video w-full"
           />
           <div v-if="!remoteStream" class="bg-gray-700/20 backdrop-blur-sm backdrop-filter absolute inset-0 flex items-center justify-center select-none aspect-video">
