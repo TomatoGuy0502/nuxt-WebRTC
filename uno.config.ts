@@ -8,7 +8,11 @@ export default defineConfig({
     presetIcons({ /* options */ }),
     presetUno(),
     presetAttributify(),
-    presetWebFonts({}),
+    presetWebFonts({
+      fonts: {
+        sans: ['Noto Sans TC:400,500,700,900'],
+      },
+    }),
   ],
   transformers: [
     transformerVariantGroup(),

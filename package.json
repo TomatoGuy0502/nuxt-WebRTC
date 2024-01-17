@@ -11,7 +11,9 @@
   },
   "dependencies": {
     "@headlessui/vue": "^1.7.17",
-    "@unocss/reset": "^0.58.3"
+    "@pinia/nuxt": "^0.5.1",
+    "@unocss/reset": "^0.58.3",
+    "peerjs": "^1.5.2"
   },
   "devDependencies": {
     "@antfu/eslint-config": "^2.6.2",
