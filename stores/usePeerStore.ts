@@ -60,6 +60,31 @@ export const usePeerStore = defineStore('peer', () => {
     })
   }
 
+  async function checkRoomStatus(toRemoteStream: Ref<MediaStream | undefined>) {
+    const roomId = useRoute().params.roomId as string
+    isCheckingRoomExist.value = true
+
+    if (isPeerReady.value) { // 創好房間，等待其他人加入
+      isCheckingRoomExist.value = false
+      isRoomExist.value = true
+      peer.value!.on('call', (_call) => {
+        call.value = _call
+        call.value.answer(toRemoteStream.value)
+        call.value.on('stream', (_remoteStream) => {
+          remoteStream.value = _remoteStream
+        })
+      })
+    } else { // 加入房間
+      await createPeer()
+      const stop = watch(toRemoteStream, (newStream) => {
+        if (newStream) { // Wait for stream ready
+          callAnotherPeer(roomId, newStream)
+          stop()
+        }
+      }, { immediate: true })
+    }
+  }
+
   return {
     peerId,
     isPeerReady,
@@ -71,5 +96,6 @@ export const usePeerStore = defineStore('peer', () => {
     call,
     isCheckingRoomExist,
     isRoomExist,
+    checkRoomStatus,
   }
 })

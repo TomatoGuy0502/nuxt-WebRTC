@@ -3,8 +3,7 @@ import '@unocss/reset/tailwind-compat.css'
 
 const route = useRoute()
 const peerStore = usePeerStore()
-const { peer, isPeerReady, remoteStream, call, isRoomExist, isCheckingRoomExist } = storeToRefs(peerStore)
-isCheckingRoomExist.value = true
+const { remoteStream, isRoomExist, isCheckingRoomExist } = storeToRefs(peerStore)
 
 const { cameras, microphones, speakers, currentCamera, currentMicrophone, currentSpeaker, supportChangeAudioOutput } = useDevices()
 
@@ -12,10 +11,13 @@ const myVideoEl = ref<HTMLVideoElement>()
 const remoteVideoEl = ref<HTMLVideoElement>()
 const canvasEl = ref<HTMLCanvasElement>()
 
+// Check if the user is the creator of the room
 const isCreater = computed(() => route.params.roomId === peerStore.peerId)
 
+// Show the last frame of the video stream when switching devices
 const showCanvas = ref(false)
 
+// Control the camera and microphone
 const isCameraOn = ref(true)
 const isMicOn = ref(true)
 
@@ -27,96 +29,61 @@ const { stream: toRemoteStream } = useUserMedia({
     audio: {},
   },
 })
-// Used to create a new stream when switching devices
-const tempStream: Ref<MediaStream | undefined> = shallowRef()
-function clearTempStream() {
-  tempStream.value?.getTracks().forEach(track => track.stop())
-  tempStream.value = undefined
+
+await peerStore.checkRoomStatus(toRemoteStream)
+
+function removeTrack(stream: MediaStream, kind: 'audio' | 'video') {
+  stream.getTracks().filter(track => track.kind === kind).forEach((track) => {
+    track.stop()
+    stream.removeTrack(track)
+  })
 }
 
-if (isPeerReady.value) { // 創好房間，等待其他人加入
-  isCheckingRoomExist.value = false
-  isRoomExist.value = true
-  peer.value!.on('call', (_call) => {
-    call.value = _call
-    call.value.answer(toRemoteStream.value)
-    call.value.on('stream', (_remoteStream) => {
-      remoteStream.value = _remoteStream
-    })
-  })
-} else { // 加入房間
-  await peerStore.createPeer()
-  const stop = watch(toRemoteStream, (newStream) => {
-    if (newStream) { // Wait for stream ready
-      peerStore.callAnotherPeer(route.params.roomId as string, newStream)
-      stop()
-    }
-  }, { immediate: true })
+async function changeDeviceTrack(deviceId: string, kind: 'audio' | 'video', enabled: boolean = true) {
+  // Create a new track and replace the old one
+  const tempStream = await navigator.mediaDevices.getUserMedia(kind === 'video'
+    ? { video: { deviceId, width: 640, height: 360 } }
+    : { audio: { deviceId } },
+  )
+  const newTrack = tempStream.getTracks()[0].clone()
+  newTrack.enabled = enabled
+
+  if (kind === 'video')
+    handleCanvasTransition()
+
+  // Change the streamTrack sent to the remote peer first
+  peerStore.changeMediaStreamTrack(newTrack, kind)
+
+  // Then change the streamTrack displayed on the screen
+  removeTrack(toRemoteStream.value!, kind)
+  toRemoteStream.value!.addTrack(newTrack)
+
+  if (kind === 'video')
+    showCanvas.value = false
+  tempStream.getTracks().forEach(track => track.stop())
 }
 
 watch(currentCamera, async (newDeviceId, oldDeviceId) => {
   if (!oldDeviceId || !newDeviceId)
     return
   // Change stream sent to remote peer
-  try {
-    // Create a new track and replace the old one
-    tempStream.value = await navigator.mediaDevices.getUserMedia({ video: { deviceId: newDeviceId, width: 640, height: 360 } })
-    const newVideoTrack = tempStream.value.getVideoTracks()[0].clone()
-    newVideoTrack.enabled = isCameraOn.value
-    handleCanvasTransition()
-
-    // Change the streamTrack sent to the remote peer first
-    peerStore.changeMediaStreamTrack(newVideoTrack, 'video')
-    // Then change the streamTrack displayed on the screen
-    removeTrack(toRemoteStream.value!, 'video')
-    addTrack(toRemoteStream.value!, newVideoTrack, isCameraOn.value)
-
-    showCanvas.value = false
-    clearTempStream()
-  } catch (e) {
-    console.error(e)
-  }
+  await changeDeviceTrack(newDeviceId, 'video', isCameraOn.value)
 })
-
-function removeTrack(stream: MediaStream, kind: 'audio' | 'video') {
-  const [track] = stream.getTracks().filter(track => track.kind === kind)
-  if (track) {
-    stream.removeTrack(track)
-    track.stop()
-  }
-}
-function addTrack(stream: MediaStream, track: MediaStreamTrack, enabled: boolean = true) {
-  track.enabled = enabled
-  stream.addTrack(track)
-}
 
 watch(currentMicrophone, async (newDeviceId, oldDeviceId) => {
   if (!oldDeviceId || !newDeviceId)
     return
-  try {
-    tempStream.value = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: newDeviceId } })
-    const newAudioTrack = tempStream.value.getAudioTracks()[0].clone()
-    newAudioTrack.enabled = isMicOn.value
-    peerStore.changeMediaStreamTrack(newAudioTrack, 'audio')
-
-    removeTrack(toRemoteStream.value!, 'audio')
-    addTrack(toRemoteStream.value!, newAudioTrack, isMicOn.value)
-    clearTempStream()
-  } catch (e) {
-    console.error(e)
-  }
+  await changeDeviceTrack(newDeviceId, 'audio', isMicOn.value)
 })
 
 // Handle audio output change
-onMounted(() => {
-  if (!supportChangeAudioOutput.value)
-    return
+if (supportChangeAudioOutput.value) {
   watch(currentSpeaker, (newDeviceId, oldDeviceId) => {
     if (!oldDeviceId || !newDeviceId)
       return
     (remoteVideoEl.value as any).setSinkId(newDeviceId)
   })
-})
+}
 
 function toggleCamera() {
   isCameraOn.value = !isCameraOn.value

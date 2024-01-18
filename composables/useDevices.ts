@@ -4,10 +4,8 @@ export function useDevices() {
   const currentSpeaker = ref<string>()
 
   const supportChangeAudioOutput = ref(false)
-  onMounted(() => {
-    if ('setSinkId' in AudioContext.prototype)
-      supportChangeAudioOutput.value = true
-  })
+  if ('setSinkId' in AudioContext.prototype)
+    supportChangeAudioOutput.value = true
 
   const { videoInputs: cameras, audioInputs: microphones, audioOutputs: _speakers } = useDevicesList({
     requestPermissions: true,
