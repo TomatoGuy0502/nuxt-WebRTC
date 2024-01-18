@@ -39,20 +39,21 @@ export const usePeerStore = defineStore('peer', () => {
   }
 
   const remoteStream = ref<MediaStream>()
-  const call = ref<MediaConnection>()
+  const mediaConnection = ref<MediaConnection>()
   function callAnotherPeer(peerId: string, stream: MediaStream) {
     if (!peer.value || !isPeerReady.value)
       return
     isCheckingRoomExist.value = true
-    call.value = peer.value.call(peerId, stream)
-    call.value.on('stream', (_remoteStream) => {
+    mediaConnection.value = peer.value.call(peerId, stream)
+    mediaConnection.value.on('stream', (_remoteStream) => {
       isCheckingRoomExist.value = false
       isRoomExist.value = true
       remoteStream.value = _remoteStream
     })
+    _listenRemoteDisconnect()
   }
   function changeMediaStreamTrack(track: MediaStreamTrack, type: 'video' | 'audio') {
-    call.value?.peerConnection?.getSenders().forEach((sender) => {
+    mediaConnection.value?.peerConnection?.getSenders().forEach((sender) => {
       if (type === sender.track?.kind) {
         sender.track.stop() // stop old track
         sender.replaceTrack(track)
@@ -64,25 +65,44 @@ export const usePeerStore = defineStore('peer', () => {
     const roomId = useRoute().params.roomId as string
     isCheckingRoomExist.value = true
 
-    if (isPeerReady.value) { // 創好房間，等待其他人加入
+    if (isPeerReady.value) { // Already in room
       isCheckingRoomExist.value = false
       isRoomExist.value = true
-      peer.value!.on('call', (_call) => {
-        call.value = _call
-        call.value.answer(toRemoteStream.value)
-        call.value.on('stream', (_remoteStream) => {
+      peer.value!.on('call', (_mediaConnection) => {
+        mediaConnection.value = _mediaConnection
+        mediaConnection.value.answer(toRemoteStream.value)
+        mediaConnection.value.on('stream', (_remoteStream) => {
           remoteStream.value = _remoteStream
         })
+        _listenRemoteDisconnect()
       })
-    } else { // 加入房間
+    } else { // Enter room
       await createPeer()
-      const stop = watch(toRemoteStream, (newStream) => {
-        if (newStream) { // Wait for stream ready
-          callAnotherPeer(roomId, newStream)
-          stop()
-        }
-      }, { immediate: true })
+      if (toRemoteStream.value) {
+        callAnotherPeer(roomId, toRemoteStream.value)
+      } else {
+        // Wait for stream ready
+        watch(toRemoteStream, (newStream) => {
+          if (newStream)
+            callAnotherPeer(roomId, newStream)
+        }, { once: true })
+      }
     }
+  }
+
+  function _listenRemoteDisconnect() {
+    mediaConnection.value!.on('close', () => {
+      remoteStream.value = undefined
+      mediaConnection.value = undefined
+    })
+    // Workaround for opening 2 tabs in Chrome in same machine. Just for demo purpose.
+    const timer = setInterval(() => {
+      if (remoteStream.value && remoteStream.value.getVideoTracks()[0].muted) {
+        remoteStream.value = undefined
+        mediaConnection.value = undefined
+        clearInterval(timer)
+      }
+    }, 1000)
   }
 
   return {
@@ -93,7 +113,7 @@ export const usePeerStore = defineStore('peer', () => {
     remoteStream,
     callAnotherPeer,
     changeMediaStreamTrack,
-    call,
+    mediaConnection,
     isCheckingRoomExist,
     isRoomExist,
     checkRoomStatus,

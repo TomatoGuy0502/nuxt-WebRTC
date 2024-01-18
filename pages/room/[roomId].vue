@@ -29,8 +29,9 @@ const { stream: toRemoteStream } = useUserMedia({
     audio: {},
   },
 })
-
-await peerStore.checkRoomStatus(toRemoteStream)
+onMounted(async () => {
+  await peerStore.checkRoomStatus(toRemoteStream)
+})
 
 function removeTrack(stream: MediaStream, kind: 'audio' | 'video') {
   stream.getTracks().filter(track => track.kind === kind).forEach((track) => {
@@ -138,22 +139,8 @@ function handleCopyLink() {
     <div v-else class="flex gap-4 flex-1" :class="{ 'flex-row-reverse': !isCreater }">
       <div class="flex-1 flex p-4 justify-center items-center bg-gray-700/20 rounded-lg backdrop-blur-sm backdrop-filter relative">
         <div class="flex gap-4 p-2 px-4 absolute bottom-4 left-1/2 -translate-x-1/2 z-1 rounded-lg bg-gray-700/20">
-          <button
-            class="p-4 text-white rounded-full transition"
-            :class="isMicOn ? 'bg-black/20 hover:(bg-black/30)' : 'bg-red-400 hover:(bg-red-500)'"
-            @click="toggleMuteMyself"
-          >
-            <div v-show="isMicOn" class="i-tabler-microphone w-8 h-8" />
-            <div v-show="!isMicOn" class="i-tabler-microphone-off w-8 h-8" />
-          </button>
-          <button
-            class="p-4 text-white rounded-full transition"
-            :class="isCameraOn ? 'bg-black/20 hover:(bg-black/30)' : 'bg-red-400 hover:(bg-red-500)'"
-            @click="toggleCamera"
-          >
-            <div v-show="isCameraOn" class="i-tabler-video w-8 h-8" />
-            <div v-show="!isCameraOn" class="i-tabler-video-off w-8 h-8" />
-          </button>
+          <ToggleButton :is-on="isMicOn" is-on-icon="i-tabler-microphone" is-off-icon="i-tabler-microphone-off" @toggle="toggleMuteMyself" />
+          <ToggleButton :is-on="isCameraOn" is-on-icon="i-tabler-video" is-off-icon="i-tabler-video-off" @toggle="toggleCamera" />
           <SettingModal
             v-model:currentCamera="currentCamera"
             v-model:currentMicrophone="currentMicrophone"
@@ -181,8 +168,6 @@ function handleCopyLink() {
           </transition>
           <canvas v-show="showCanvas" ref="canvasEl" width="640" height="360" class="absolute top-0 w-full" />
         </div>
-        <!-- TODO: Handle user disconnection -->
-        <!-- TODO: Handle remote hide camera -->
       </div>
       <div class="flex-1 flex p-4 justify-center items-center bg-gray-700/20 rounded-lg backdrop-blur-sm backdrop-filter">
         <div class="relative overflow-hidden rounded-lg w-full">

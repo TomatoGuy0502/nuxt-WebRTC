@@ -55,3 +55,6 @@
 
 - 如何切換顯示/關閉自己的鏡頭與麥克風
   - 解決辦法：使用`MediaStreamTrack`的`enabled` 來控制 [參考](https://developer.mozilla.org/en-US/docs/Web/API/MediaStreamTrack/enabled)
+
+- 在Chrome使用不同分頁互相連線時，就算關閉一個分頁，也不會關閉與其他分頁的連線(跨瀏覽器/裝置則正常)
+  - 解決辦法：使用`setInterval`來定時檢查對方影像的狀態，如果對方`videoTrack`的狀態為`muted`，則關閉連線(此為特殊情況)
