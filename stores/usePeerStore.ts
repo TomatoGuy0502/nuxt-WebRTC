@@ -8,6 +8,10 @@ export const usePeerStore = defineStore('peer', () => {
   const isCheckingRoomExist = ref(false)
   const isRoomExist = ref(false)
 
+  const remoteStream = ref<MediaStream>()
+  const mediaConnection = shallowRef<MediaConnection>()
+  const bc = ref<BroadcastChannel>()
+
   function createPeer() {
     if (peer.value)
       return
@@ -35,12 +39,19 @@ export const usePeerStore = defineStore('peer', () => {
             break
         }
       })
+      peer.value.on('call', (_mediaConnection) => {
+        // If already in call, ignore
+        if (mediaConnection.value)
+          return
+        mediaConnection.value = _mediaConnection
+        mediaConnection.value.on('stream', (_remoteStream) => {
+          remoteStream.value = _remoteStream
+        })
+        _listenRemoteDisconnect()
+        bc.value!.postMessage({ from: peerId.value, to: _mediaConnection.peer })
+      })
     })
   }
-
-  const remoteStream = ref<MediaStream>()
-  const mediaConnection = ref<MediaConnection>()
-  const bc = ref<BroadcastChannel>()
 
   async function checkRoomStatus(toRemoteStream: Ref<MediaStream | undefined>) {
     const roomId = useRoute().params.roomId as string
@@ -50,23 +61,15 @@ export const usePeerStore = defineStore('peer', () => {
     bc.value = new BroadcastChannel(roomId)
     bc.value.onmessage = _listenSameBrowserDisconnect
 
-    if (isPeerReady.value) { // Already in room
+    if (roomId === peerId.value) { // Creater of the room
       isCheckingRoomExist.value = false
       isRoomExist.value = true
 
-      peer.value!.on('call', (_mediaConnection) => {
-        // If already in call, ignore
-        if (mediaConnection.value)
-          return
-        mediaConnection.value = _mediaConnection
-        mediaConnection.value.answer(toRemoteStream.value)
-        mediaConnection.value.on('stream', (_remoteStream) => {
-          remoteStream.value = _remoteStream
-        })
-        _listenRemoteDisconnect()
-        bc.value!.postMessage({ from: peerId.value, to: _mediaConnection.peer })
+      watch([toRemoteStream, mediaConnection], ([newStream, newMediaConnection]) => {
+        if (newStream && newMediaConnection)
+          newMediaConnection.answer(newStream)
       })
-    } else { // Enter room
+    } else { // Participant of the room
       await createPeer()
       if (toRemoteStream.value) {
         callAnotherPeer(roomId, toRemoteStream.value)
@@ -105,6 +108,12 @@ export const usePeerStore = defineStore('peer', () => {
     })
   }
 
+  function hangup() {
+    mediaConnection.value?.close()
+    remoteStream.value = undefined
+    mediaConnection.value = undefined
+  }
+
   function _listenRemoteDisconnect() {
     mediaConnection.value!.on('close', () => {
       remoteStream.value = undefined
@@ -116,6 +125,7 @@ export const usePeerStore = defineStore('peer', () => {
   function _listenSameBrowserDisconnect(_e: MessageEvent<{ from: string, to: string }>) {
     const timer = window.setInterval(() => {
       if (remoteStream.value && remoteStream.value.getVideoTracks()[0].muted) {
+        mediaConnection.value?.close()
         remoteStream.value = undefined
         mediaConnection.value = undefined
         clearInterval(timer)
@@ -135,5 +145,6 @@ export const usePeerStore = defineStore('peer', () => {
     isCheckingRoomExist,
     isRoomExist,
     checkRoomStatus,
+    hangup,
   }
 })

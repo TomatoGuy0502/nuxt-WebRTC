@@ -3,13 +3,15 @@ import '@unocss/reset/tailwind-compat.css'
 
 const route = useRoute()
 const peerStore = usePeerStore()
-const { remoteStream, isRoomExist, isCheckingRoomExist } = storeToRefs(peerStore)
+const { remoteStream, isRoomExist, isCheckingRoomExist, mediaConnection } = storeToRefs(peerStore)
 
 const { cameras, microphones, speakers, currentCamera, currentMicrophone, currentSpeaker, supportChangeAudioOutput } = useDevices()
 
 const myVideoEl = ref<HTMLVideoElement>()
 const remoteVideoEl = ref<HTMLVideoElement>()
 const canvasEl = ref<HTMLCanvasElement>()
+
+const location = window.location
 
 // Check if the user is the creator of the room
 const isCreater = computed(() => route.params.roomId === peerStore.peerId)
@@ -110,6 +112,13 @@ function handleCanvasTransition() {
 function handleCopyLink() {
   navigator.clipboard.writeText(window.location.href)
 }
+
+function handleHangup() {
+  peerStore.hangup()
+  toRemoteStream.value?.getTracks().forEach(track => track.stop())
+  toRemoteStream.value = undefined
+  useRouter().push('/')
+}
 </script>
 
 <template>
@@ -121,19 +130,20 @@ function handleCopyLink() {
           WebRTC Playground
         </span>
       </a>
-      <button v-if="isCreater" class="ml-auto flex items-center gap-2 p-2 px-4 rounded-lg bg-orange-300 transition text-white hover:(bg-orange-400)" @click="handleCopyLink">
-        <div class="i-tabler-copy w-5 h-5 mt-0.5" />
-        <span class="font-bold">Copy Link</span>
-      </button>
-      <!-- TODO: Hide the button when the room is full -->
+      <CopyButton class="ml-auto" :copy-text="location.href" show-text="Link" />
+      <CopyButton :copy-text="$route.params.roomId as string" show-text="ID" />
       <!-- TODO: Show room ID -->
       <a
         v-if="isCreater"
-        class="hidden lg:flex items-center gap-2 p-2 px-4 rounded-lg bg-orange-300 transition text-white hover:(bg-orange-400)"
-        :href="$route.fullPath" target="_blank"
+        class="hidden lg:flex items-center gap-2 p-2 px-4 rounded-lg transition text-white"
+        :class="[!!mediaConnection ? 'bg-gray-400 cursor-not-allowed' : 'bg-orange-300 hover:(bg-orange-400)']"
+        :href="$route.fullPath"
+        target="_blank"
+        @click="!!mediaConnection && $event.preventDefault()"
       >
         <div class="i-tabler-external-link w-5 h-5 mt-0.5" />
-        <span class="font-bold">Join the room in new tab</span>
+        <span v-if="!mediaConnection" class="font-bold">Join the room in new tab</span>
+        <span v-else class="font-bold">Room is full now</span>
       </a>
     </nav>
     <div v-if="isCheckingRoomExist" class="flex flex-1 p-4 justify-center items-center bg-gray-700/20 rounded-lg backdrop-blur-sm backdrop-filter text-2xl">
@@ -155,6 +165,7 @@ function handleCopyLink() {
             v-model:currentSpeaker="currentSpeaker"
             :cameras="cameras" :microphones="microphones" :speakers="speakers"
           />
+          <HangupModal @confirm="handleHangup" />
         </div>
         <div class="relative overflow-hidden rounded-lg aspect-video h-full flex items-center md:(w-full)">
           <transition

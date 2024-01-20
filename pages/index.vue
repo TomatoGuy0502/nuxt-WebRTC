@@ -14,9 +14,12 @@ async function handleCreateRoom() {
   router.push(`/room/${peerStore.peerId}`)
 }
 
-function handleJoinRoom() {
+async function handleJoinRoom() {
   if (!roomId.value || isLoading.value)
     return
+  isLoading.value = true
+  await peerStore.createPeer()
+  isLoading.value = false
   router.push(`/room/${roomId.value}`)
 }
 </script>

@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ref } from 'vue'
 import {
   Dialog,
   DialogPanel,
@@ -74,7 +73,7 @@ const currentSpeaker = defineModel<string>('currentSpeaker')
                     攝影機 Camera
                   </p>
                 </div>
-                <DevicesSelect v-model="currentCamera" :options="cameras" />
+                <SettingModalDevicesSelect v-model="currentCamera" :options="cameras" />
               </div>
               <div>
                 <div class="flex items-center gap-2 mb-2 text-gray-800">
@@ -83,7 +82,7 @@ const currentSpeaker = defineModel<string>('currentSpeaker')
                     麥克風 Microphone
                   </p>
                 </div>
-                <DevicesSelect v-model="currentMicrophone" :options="microphones" />
+                <SettingModalDevicesSelect v-model="currentMicrophone" :options="microphones" />
               </div>
               <div>
                 <div class="flex items-center gap-2 mb-2 text-gray-800">
@@ -92,7 +91,7 @@ const currentSpeaker = defineModel<string>('currentSpeaker')
                     揚聲器 Speaker
                   </p>
                 </div>
-                <DevicesSelect v-model="currentSpeaker" :options="speakers" />
+                <SettingModalDevicesSelect v-model="currentSpeaker" :options="speakers" />
               </div>
             </div>
             <div class="flex">
