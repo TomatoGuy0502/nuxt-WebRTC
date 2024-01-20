@@ -29,10 +29,10 @@ const currentSpeaker = defineModel<string>('currentSpeaker')
 <template>
   <button
     type="button"
-    class="rounded-full z-1 bg-black/20 p-3 text-white shadow transition hover:bg-black/30 outline-none"
+    class="rounded-full z-1 bg-black/20 p-2 lg:p-3 text-white shadow transition hover:bg-black/30 outline-none"
     @click="setIsOpen(true)"
   >
-    <div class="i-tabler-settings h-10 w-10" />
+    <div class="i-tabler-settings w-8 h-8 lg:(h-10 w-10)" />
   </button>
   <TransitionRoot appear :show="isOpen" as="template">
     <Dialog as="div" :open="isOpen" @close="setIsOpen">

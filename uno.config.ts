@@ -7,7 +7,6 @@ export default defineConfig({
   presets: [
     presetIcons({ /* options */ }),
     presetUno(),
-    presetAttributify(),
     presetWebFonts({
       fonts: {
         sans: ['Noto Sans TC:400,500,700,900'],

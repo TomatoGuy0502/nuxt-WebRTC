@@ -115,15 +115,23 @@ function handleCopyLink() {
 <template>
   <div class="h-dvh bg-gray-50 flex flex-col bg-pattern p-4 gap-4">
     <nav class="flex p-4 gap-4 bg-gray-700/20 rounded-lg backdrop-blur-sm backdrop-filter">
-      <a href="/" class="font-black text-4xl text-white">
-        WebRTC Playground
+      <a href="/" class="flex items-center gap-2 font-black text-4xl text-white">
+        <div class="i-tabler-home w-10 h-10" />
+        <span class="hidden md:inline">
+          WebRTC Playground
+        </span>
       </a>
       <button v-if="isCreater" class="ml-auto flex items-center gap-2 p-2 px-4 rounded-lg bg-orange-300 transition text-white hover:(bg-orange-400)" @click="handleCopyLink">
         <div class="i-tabler-copy w-5 h-5 mt-0.5" />
         <span class="font-bold">Copy Link</span>
       </button>
       <!-- TODO: Hide the button when the room is full -->
-      <a v-if="isCreater" class="flex items-center gap-2 p-2 px-4 rounded-lg bg-orange-300 transition text-white hover:(bg-orange-400)" :href="$route.fullPath" target="_blank">
+      <!-- TODO: Show room ID -->
+      <a
+        v-if="isCreater"
+        class="hidden lg:flex items-center gap-2 p-2 px-4 rounded-lg bg-orange-300 transition text-white hover:(bg-orange-400)"
+        :href="$route.fullPath" target="_blank"
+      >
         <div class="i-tabler-external-link w-5 h-5 mt-0.5" />
         <span class="font-bold">Join the room in new tab</span>
       </a>
@@ -136,9 +144,9 @@ function handleCopyLink() {
         {{ '返回主頁面' }}
       </NuxtLink>
     </div>
-    <div v-else class="flex gap-4 flex-1" :class="{ 'flex-row-reverse': !isCreater }">
-      <div class="flex-1 flex p-4 justify-center items-center bg-gray-700/20 rounded-lg backdrop-blur-sm backdrop-filter relative">
-        <div class="flex gap-4 p-2 px-4 absolute bottom-4 left-1/2 -translate-x-1/2 z-1 rounded-lg bg-gray-700/20">
+    <div v-else class="relative gap-4 flex-1 max-md:(grid grid-rows-2 overflow-hidden) md:(flex)" :class="{ 'flex-row-reverse': !isCreater }">
+      <div class="flex-1 flex p-4 justify-center items-center bg-gray-700/20 rounded-lg backdrop-blur-sm backdrop-filter relative md:max-lg:(absolute w-2/5 z-1 bottom-0 right-0 flex-row-reverse p-2)">
+        <div class="flex gap-2 p-2 lg:(px-4 gap-4) absolute bottom-4 left-1/2 -translate-x-1/2 z-1 rounded-lg bg-gray-700/20 md:max-lg:(relative bottom-0 left-0 translate-x-0 flex-col ml-2)">
           <ToggleButton :is-on="isMicOn" is-on-icon="i-tabler-microphone" is-off-icon="i-tabler-microphone-off" @toggle="toggleMuteMyself" />
           <ToggleButton :is-on="isCameraOn" is-on-icon="i-tabler-video" is-off-icon="i-tabler-video-off" @toggle="toggleCamera" />
           <SettingModal
@@ -148,21 +156,21 @@ function handleCopyLink() {
             :cameras="cameras" :microphones="microphones" :speakers="speakers"
           />
         </div>
-        <div class="relative overflow-hidden rounded-lg aspect-video w-full">
+        <div class="relative overflow-hidden rounded-lg aspect-video h-full flex items-center md:(w-full)">
           <transition
             enter-active-class="transition duration-100 ease-in"
             enter-from-class="opacity-0"
           >
             <video
               v-show="isCameraOn" ref="myVideoEl" muted
-              playsinline autoplay :srcObject="toRemoteStream" class="aspect-video w-full"
+              playsinline autoplay :srcObject="toRemoteStream" class="aspect-video w-full rounded-lg"
             />
           </transition>
           <transition
             leave-active-class="transition duration-100 ease-in"
             leave-to-class="opacity-0"
           >
-            <div v-show="!isCameraOn" class="bg-gray-700/20 backdrop-blur-sm backdrop-filter absolute inset-0 flex items-center justify-center select-none">
+            <div v-show="!isCameraOn" class="bg-gray-700/40 rounded-lg absolute grid place-items-center select-none aspect-video w-full">
               鏡頭尚未開啟
             </div>
           </transition>
@@ -170,12 +178,12 @@ function handleCopyLink() {
         </div>
       </div>
       <div class="flex-1 flex p-4 justify-center items-center bg-gray-700/20 rounded-lg backdrop-blur-sm backdrop-filter">
-        <div class="relative overflow-hidden rounded-lg w-full">
+        <div class="relative overflow-hidden rounded-lg aspect-video flex h-full items-center md:(w-full)">
           <video
             ref="remoteVideoEl"
-            playsinline autoplay :srcObject="remoteStream" class="aspect-video w-full"
+            playsinline autoplay :srcObject="remoteStream" class="aspect-video w-full rounded-lg"
           />
-          <div v-if="!remoteStream" class="bg-gray-700/20 backdrop-blur-sm backdrop-filter absolute inset-0 flex items-center justify-center select-none aspect-video">
+          <div v-if="!remoteStream" class="bg-gray-700/40 rounded-lg absolute grid place-items-center select-none aspect-video w-full">
             對方尚未連接
           </div>
         </div>
