@@ -16,20 +16,21 @@
     - [x] 使用peerjs來實作
 3. 優化介面
     - [x] landing page
-    - [ ] Room page
+    - [x] Room page
       - [x] 顯示房間狀態(房間是否存在)
-      - [ ] 顯示分享按鈕
+      - [x] 顯示分享按鈕
         - [x] 複製連結
         - [x] 使用新的tab開啟
-        - [ ] 使用QR code
-      - [ ] 顯示對方狀態
-    - [ ] RWD
+        - [x] 使用QR code
+      - [x] 顯示對方狀態
+    - [x] RWD
 
 ## 相關名詞解釋
 - ICE (Interactive Connectivity Establishment)
   - 用來建立P2P連線的協定
   - 用來應對NAT與防火牆的問題
   - 透過STUN/TURN伺服器來取得IP位址
+  - 使用SDP來交換資訊
 - STUN (Session Traversal Utilities for NAT)
   - 用於檢查和獲取設備的公共IP地址和端口
 - TURN (Traversal Using Relays around NAT)

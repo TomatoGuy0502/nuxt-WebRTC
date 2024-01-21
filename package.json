@@ -12,8 +12,10 @@
   "dependencies": {
     "@headlessui/vue": "^1.7.17",
     "@pinia/nuxt": "^0.5.1",
+    "@types/qrcode": "^1.5.5",
     "@unocss/reset": "^0.58.3",
-    "peerjs": "^1.5.2"
+    "peerjs": "^1.5.2",
+    "qrcode": "^1.5.3"
   },
   "devDependencies": {
     "@antfu/eslint-config": "^2.6.2",

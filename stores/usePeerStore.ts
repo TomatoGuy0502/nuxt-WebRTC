@@ -3,7 +3,6 @@ import type { MediaConnection } from 'peerjs'
 
 export const usePeerStore = defineStore('peer', () => {
   const peerId = ref('')
-  const isPeerReady = computed(() => peerId.value !== '')
   const peer = ref<Peer>()
   const isCheckingRoomExist = ref(false)
   const isRoomExist = ref(false)
@@ -16,7 +15,7 @@ export const usePeerStore = defineStore('peer', () => {
     if (peer.value)
       return
     return new Promise<void>((resolve) => {
-      peer.value = new Peer({
+      peer.value = new Peer(generateID(10), {
         // host: 'localhost',
         // port: 3001,
         // path: '/',
@@ -84,7 +83,7 @@ export const usePeerStore = defineStore('peer', () => {
   }
 
   function callAnotherPeer(remotePeerId: string, stream: MediaStream) {
-    if (!peer.value || !isPeerReady.value)
+    if (!peer.value)
       return
     isCheckingRoomExist.value = true
     mediaConnection.value = peer.value.call(remotePeerId, stream)
@@ -135,7 +134,6 @@ export const usePeerStore = defineStore('peer', () => {
 
   return {
     peerId,
-    isPeerReady,
     peer,
     createPeer,
     remoteStream,

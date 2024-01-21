@@ -5,7 +5,7 @@ const route = useRoute()
 const peerStore = usePeerStore()
 const { remoteStream, isRoomExist, isCheckingRoomExist, mediaConnection } = storeToRefs(peerStore)
 
-const { cameras, microphones, speakers, currentCamera, currentMicrophone, currentSpeaker, supportChangeAudioOutput } = useDevices()
+const { cameras, microphones, speakers, currentCamera, currentMicrophone, currentSpeaker, supportChangeAudioOutput, initCurrentDevices } = useDevices()
 
 const myVideoEl = ref<HTMLVideoElement>()
 const remoteVideoEl = ref<HTMLVideoElement>()
@@ -31,6 +31,9 @@ const { stream: toRemoteStream } = useUserMedia({
     audio: {},
   },
 })
+watch(toRemoteStream, () => {
+  initCurrentDevices(toRemoteStream.value!)
+}, { once: true })
 onMounted(async () => {
   await peerStore.checkRoomStatus(toRemoteStream)
 })
@@ -45,7 +48,7 @@ function removeTrack(stream: MediaStream, kind: 'audio' | 'video') {
 async function changeDeviceTrack(deviceId: string, kind: 'audio' | 'video', enabled: boolean = true) {
   // Create a new track and replace the old one
   const tempStream = await navigator.mediaDevices.getUserMedia(kind === 'video'
-    ? { video: { deviceId, width: 640, height: 360 } }
+    ? { video: { deviceId } }
     : { audio: { deviceId } },
   )
   const newTrack = tempStream.getTracks()[0].clone()
@@ -109,10 +112,6 @@ function handleCanvasTransition() {
   }
 }
 
-function handleCopyLink() {
-  navigator.clipboard.writeText(window.location.href)
-}
-
 function handleHangup() {
   peerStore.hangup()
   toRemoteStream.value?.getTracks().forEach(track => track.stop())
@@ -123,16 +122,13 @@ function handleHangup() {
 
 <template>
   <div class="h-dvh bg-gray-50 flex flex-col bg-pattern p-4 gap-4">
-    <nav class="flex p-4 gap-4 bg-gray-700/20 rounded-lg backdrop-blur-sm backdrop-filter">
+    <nav class="relative z-1 flex p-4 gap-4 bg-gray-700/20 rounded-lg backdrop-blur-sm backdrop-filter">
       <a href="/" class="flex items-center gap-2 font-black text-4xl text-white">
         <div class="i-tabler-home w-10 h-10" />
-        <span class="hidden md:inline">
-          WebRTC Playground
-        </span>
       </a>
-      <CopyButton class="ml-auto" :copy-text="location.href" show-text="Link" />
+      <QRCodePopover class="ml-auto" />
+      <CopyButton :copy-text="location.href" show-text="Link" />
       <CopyButton :copy-text="$route.params.roomId as string" show-text="ID" />
-      <!-- TODO: Show room ID -->
       <a
         v-if="isCreater"
         class="hidden lg:flex items-center gap-2 p-2 px-4 rounded-lg transition text-white"
@@ -142,12 +138,13 @@ function handleHangup() {
         @click="!!mediaConnection && $event.preventDefault()"
       >
         <div class="i-tabler-external-link w-5 h-5 mt-0.5" />
-        <span v-if="!mediaConnection" class="font-bold">Join the room in new tab</span>
+        <span v-if="!mediaConnection" class="font-bold">Join in new tab</span>
         <span v-else class="font-bold">Room is full now</span>
       </a>
     </nav>
-    <div v-if="isCheckingRoomExist" class="flex flex-1 p-4 justify-center items-center bg-gray-700/20 rounded-lg backdrop-blur-sm backdrop-filter text-2xl">
-      正在將你引導至房間...
+    <div v-if="isCheckingRoomExist" class="flex flex-1 p-4 gap-1 justify-center items-center bg-gray-700/20 rounded-lg backdrop-blur-sm backdrop-filter text-2xl">
+      <div class="i-tabler-loader w-8 h-8 animate-[spin_3s_linear_infinite]" />
+      正在將您引導至房間
     </div>
     <div v-else-if="!isRoomExist" class="flex flex-1 p-4 justify-center items-center bg-gray-700/20 rounded-lg backdrop-blur-sm backdrop-filter text-2xl">
       房間不存在，<NuxtLink to="/" class="underline">
@@ -181,7 +178,7 @@ function handleHangup() {
             leave-active-class="transition duration-100 ease-in"
             leave-to-class="opacity-0"
           >
-            <div v-show="!isCameraOn" class="bg-gray-700/40 rounded-lg absolute grid place-items-center select-none aspect-video w-full">
+            <div v-show="!isCameraOn || !toRemoteStream" class="bg-gray-700/40 rounded-lg absolute grid place-items-center select-none aspect-video w-full">
               鏡頭尚未開啟
             </div>
           </transition>
