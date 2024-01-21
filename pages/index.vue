@@ -5,22 +5,6 @@ const router = useRouter()
 const roomId = ref('')
 const isLoading = ref(false)
 
-useHead({
-  title: 'WebRTC Playground',
-  meta: [
-    {
-      name: 'description',
-      content: 'WebRTC Playground',
-    },
-  ],
-  link: [
-    {
-      rel: 'icon',
-      href: '/favicon.svg',
-    },
-  ],
-})
-
 async function handleCreateRoom() {
   if (isLoading.value)
     return
