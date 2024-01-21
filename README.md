@@ -1,4 +1,30 @@
-# Nuxt WebRTC
+<h1 align="center">
+    Nuxt WebRTC
+</h2>
+<br>
+
+<p align="center">
+    <a href="https://nuxt-webrtc.vercel.app/" target="_blank">
+        <img src="https://i.imgur.com/YZW0T5T.png" alt="Landing Page Screenshot" width="600"/>
+    </a>
+</p>
+
+
+
+## 介紹
+為了學習WebRTC所做的專案，能夠：
+- 一對一視訊連線
+- 切換鏡頭 / 麥克風 / 喇叭
+- 使用連結 / Room ID / QRCode加入房間
+- 跨裝置使用（響應式設計）
+
+## Tech Stack
+- [Nuxt](https://github.com/nuxt/nuxt)
+- [Pinia](https://github.com/vuejs/pinia)
+- [UnoCSS](https://github.com/unocss/unocss)
+- [peerjs](https://github.com/peers/peerjs)
+- [Headlees UI](https://github.com/tailwindlabs/headlessui)
+- [node-qrcode](https://github.com/soldair/node-qrcode)
 
 ## 目標
 
@@ -26,6 +52,7 @@
     - [x] RWD
 
 ## 相關名詞解釋
+與開發無關，跟WebRTC底層技術較相關的一些名詞筆記
 - ICE (Interactive Connectivity Establishment)
   - 用來建立P2P連線的協定
   - 用來應對NAT與防火牆的問題
