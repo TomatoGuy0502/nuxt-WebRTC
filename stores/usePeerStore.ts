@@ -129,7 +129,7 @@ export const usePeerStore = defineStore('peer', () => {
         mediaConnection.value = undefined
         clearInterval(timer)
       }
-    }, 1000)
+    }, 3000)
   }
 
   return {
